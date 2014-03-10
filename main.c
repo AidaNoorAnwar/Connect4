@@ -22,6 +22,7 @@ typedef struct input inputType;
 
 GtkWidget * coin[ROWS][COLS];
 GtkWidget * playerImage;
+GtkWidget * winnerImage;
 
 
 struct point{
@@ -171,9 +172,10 @@ int winner_is(boardType * b){
         score=0;
 		for(j=0;j<4;j++){
 			score +=b->possibleLines[i][j]->state;
-			if(score == 4)g_print("line[i]finally red %d\n",i,score);
-			if(score < 0)g_print("line[i]finally blue %d\n",i,score);
-
+			if(score == 4)g_print("line[i]finally red %i\n",i,score);
+			if(score < 0){
+                g_print("line[i]finally blue %d\n",i,score);
+			}
 		}
 		if(score==4){
 			return playerOne;
@@ -268,9 +270,10 @@ void drop_coin(GtkWidget *widget,gpointer user_data){
     winner = winner_is(input->bInput);
     if(winner==1){
         g_print("red win");
+        gtk_image_set_from_file(winnerImage,"CoinAWIN.png");
         exit;
     }else if(winner==-1){
-        g_print("blue win");
+        gtk_image_set_from_file(winnerImage,"CoinBWIN.png");
         exit;
     }
     //wait(3);
@@ -279,8 +282,14 @@ void drop_coin(GtkWidget *widget,gpointer user_data){
     make_move(input->bInput,randomMove);
     gtk_image_set_from_file(playerImage,"CoinATURN.png");
     winner = winner_is(input->bInput);
-    if(winner==1)g_print("red win");
-    if(winner==-1)g_print("blue win");
+    if(winner==1){
+        g_print("red win");
+        gtk_image_set_from_file(winnerImage,"CoinAWIN.png");
+        exit;
+    }else if(winner==-1){
+        gtk_image_set_from_file(winnerImage,"CoinBWIN.png");
+        exit;
+    }
     //g_print("%d\n",1);
     //g_print("%d\n",input->slot);
     //gtk_image_set_from_file(coin[0][2],"CoinA.png");
@@ -299,7 +308,7 @@ void new_window(GtkWidget *win){
     g_signal_connect (win, "delete_event", GTK_SIGNAL_FUNC (delete_event), NULL);
 }
 
-void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
+void display_setting(GtkWidget *win,GtkWidget *button[7], GtkWidget *winnerImage, int rows, int cols){
     int i,j,t=5;
 	GtkWidget *levelButton[3];
     GtkWidget *playButton[3];
@@ -307,7 +316,7 @@ void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
     GtkWidget *mainTable;
     GtkWidget *boardTable;
     GtkWidget *scoreTable;
-    GtkWidget *image[cols],*winnerImage;
+    GtkWidget *image[cols];
     GtkWidget *newGameButton;
     GtkWidget *newMatchButton;
     GtkWidget *frame1,*frame2,*frame3,*frame4,*frame5;
@@ -421,7 +430,7 @@ int main(int argc, char** argv) {
 
     win = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     new_window(win);
-	display_setting(win,button,ROWS,COLS);
+	display_setting(win,button,winnerImage,ROWS,COLS);
 
 	inputType data[COLS];
     for(i=0;i<7;i++){
