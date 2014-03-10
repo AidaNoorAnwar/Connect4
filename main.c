@@ -3,234 +3,227 @@
 #include <time.h>
 #include <limits.h>
 #include <gtk/gtk.h>
-#include <gdk/gdk.h>
 
-static const int PLAYER_ONE = 1;
-static const int PLAYER_TWO = -1;
-static const int EMPTY = 0;
-typedef struct point point_type;
+#ifdef _WIN32
+    #include <windows.h>
+#else
+    #include <unitstd.h>
+#endif
+
+#define ROWS 6
+#define COLS 7
+
+static const int playerOne=1;
+static const int playerTwo=-1;
+static const int empty=0;
+typedef struct point pointType;
+typedef struct board boardType;
+typedef struct input inputType;
+
+GtkWidget * coin[ROWS][COLS];
+GtkWidget * playerImage;
 
 
 struct point{
-	int x, y, state;
+    int x, y, state;
 };
 
-point_type * newPoint(int a, int b){
-	point_type * p = (point_type*)malloc(sizeof(point_type));
-	p->x=a;
-	p->y=b;
-	p->state=EMPTY;
-	return p;
+void set_point(pointType * grid,int yAxis, int xAxis){
+    grid->y=yAxis;
+    grid->x=xAxis;
+    grid->state=empty;
 }
 
-void deletepoint(point_type* p){
-	free(p);
+void delete_Point(pointType * p){
+    free(p);
 }
 
-int equalsPosition(point_type * a, point_type* b){
-	return a->x == b->x && a->y == b->y;
+void set_state(pointType * p, int player){
+    p->state=player;
+    g_print("set state %d\n",p->state);
 }
 
-void setState(point_type * a, int player){
-	a->state=player;
+int get_state(pointType * p){
+    return p->state;
 }
 
-int getState(point_type * a){
-	return a->state;
-}
-
-typedef struct board board_type;
-
-struct board {
-	point_type*** grid;
-	int * heights;
-
-	int cols;
+struct board{
+    pointType **grid;
+    int * heights;
+    int * moves;
 	int rows;
-
-	int * moves;
-	int lm;
-
-	int cp;
-	point_type *** cl;
+	int cols;
+    int currentPlayer;
+    int lastMove;
+    int lineSize;
+    pointType *** possibleLines;
 };
 
-point_type*** generateCL(point_type *** grid){
-	point_type *** lines = (point_type ***)malloc(69 * sizeof(point_type **));
-	int i;
-
-	for(i = 0; i < 69; i++){
-		lines[i] = (point_type **)malloc(4 * sizeof(point_type *));
+pointType *** generate_possible_lines(pointType ** grid, int rows, int cols, int lineSize){
+	int i,t;
+	int y,x;
+	int count=0;
+	pointType *** lines = (pointType ***)malloc(lineSize*sizeof(pointType **));
+	for(i = 0; i < lineSize; i++){
+		lines[i] = (pointType **)malloc(4 * sizeof(pointType *));
 	}
 
-	int count =0;
-	int y;
-	int x;
-	int t;
-	for(y=0;y<6;y++){
-		for( x=0;x<4;x++){
-			point_type ** temp = (point_type **)malloc(4 * sizeof(point_type *));
+    /* mapping possible horizontal lines*/
+	for(y=0;y<rows;y++){
+		for( x=0;x<cols-3;x++){
 			for(i=x;i<x+4;i++){
-				temp[i-x]=grid[i][y];
-			}
-			lines[count]=temp;
-			count++;
+				lines[count][i-x]=&grid[y][i];
+			}count++;
 		}
 	}
 
-	for( x=0;x<7;x++){
-		for( y=0;y<3;y++){
-			point_type ** temp = (point_type**)malloc(4 * sizeof(point_type *));
+    /* mapping possible vertical lines*/
+	for( x=0;x<cols;x++){
+		for( y=0;y<rows-3;y++){
 			for( i=y;i<y+4;i++){
-				temp[i-y]=grid[x][i];
-			}
-			lines[count]=temp;
-			count++;
+				lines[count][i-y]=&grid[i][x];
+			}count++;
 		}
 	}
 
-	for( x=0;x<4;x++){
-		for( y=0;y<3;y++){
-			point_type** temp = (point_type**)malloc(4 * sizeof(point_type *));
+    /* mapping possible left_top-right_bottom diagonal lines*/
+	for( x=0;x<cols-3;x++){
+		for( y=0;y<rows-3;y++){
 			for( t=x,i=y;t<x+4 && i<y+4;t++,i++){
-				temp[i-y]=grid[t][i];
-			}
-			lines[count]=temp;
-			count++;
+				lines[count][i-y]=&grid[i][t];
+			}count++;
 		}
 	}
 
-	for( x=0;x<4;x++){
-		for( y=5;y>2;y--)
-		{
-			point_type ** temp = (point_type **)malloc(4 * sizeof(point_type *));
+    /* mapping possible left_bottom-right_top diagonal lines*/
+	for( x=0;x<cols-3;x++){
+		for( y=rows-1;y>2;y--){
 			for( t=x,i=y;t<x+4 && i>-1;t++,i--){
-				temp[t-x]=grid[t][i];
-			}
-			lines[count]=temp;
-			count++;
+				lines[count][t-x]=&grid[i][t];
+			}count++;
 		}
 	}
 	return lines;
 }
 
-board_type * createBoard(int a, int b){
-	board_type * p = (board_type*)malloc(sizeof(board_type));
-	p->cols=a;
-	p->rows=b;
-	p->lm=-1;
-	p->cp=PLAYER_ONE;
-	p->heights = (int *)malloc(p->cols * sizeof(int));
-	p->grid = (point_type ***)malloc(p->cols * sizeof(point_type **));
-	int x;
-	int y;
+boardType * create_board( int bRows, int bCols){
+    int i,j;
+	boardType * b = (boardType*)malloc(sizeof(boardType));
+    b->lastMove=-1;
+	b->currentPlayer=playerOne;
+	b->rows = bRows;
+	b->cols = bCols;
+	b->heights = (int *)malloc(b->rows*sizeof(int));
+	b->moves = (int *)malloc(b->rows*b->cols*sizeof(int));
+	b->grid = (pointType **)malloc(b->cols*sizeof(pointType *));
+	for(i = 0; i < b->cols; i++){
+		b->grid[i] = (pointType *)malloc(b->rows*sizeof(pointType ));
+	}
 
-	for(x = 0; x < p->cols; x++){
-		p->grid[x] =(point_type **)malloc(p->rows * sizeof(point_type *));
-		p->heights[x] = 0;
-		for(y = 0; y< p->rows; y++){
-			p->grid[x][y] = newPoint(x,y);
+	for(i = 0; i <b->cols; i++){
+		b->heights[i] = 0;
+		for(j = 0; j<b->rows; j++){
+			set_point(&b->grid[i][j],i,j);
 		}
 	}
 
-	p->moves = (int *)malloc(p->cols * p->rows * sizeof(int));
-	p->cl = generateCL(p->grid);
-	return p;
+	/* lineSize is the number of possible winning lines. */
+	b->lineSize = (b->rows/4+b->rows%4)*(b->cols/4+b->cols%4)*2+b->cols*(b->rows%4+b->rows/4)+b->rows*(b->cols%4+b->cols/4);
+	b->possibleLines = generate_possible_lines(b->grid,b->rows,b->cols,b->lineSize);
+	//printf("%d",b->possibleLines[1][2].state);
+	return b;
 }
 
-void deleteboard(board_type* p){
-	free(p->cl);
-	free(p->grid);
-	free(p->heights);
-	free(p->moves);
-	free(p);
+void delete_board(boardType * b){
+	free(b->possibleLines);
+	free(b->grid);
+	free(b);
 }
 
-
-int validMove(board_type * b, int column){
-	return b->heights[column]<b->rows;
+int valid_move(boardType * b, int input){
+	return b->heights[input]<b->rows;
 }
 
-void makeMove(board_type * b, int column){
-	setState(b->grid[column][b->heights[column]],b->cp);
-
-	b->heights[column]++;
-	b->lm++;
-	b->moves[b->lm]=column;
-	b->cp=-b->cp;
+int valid_moves_left(boardType * b){
+	return b->lastMove<(b->cols*b->rows-1);
 }
 
-
-void undoMove(board_type * b){
-	setState(b->grid[b->moves[b->lm]][b->heights[b->moves[b->lm]]-1],(EMPTY));
-	b->heights[b->moves[b->lm]]--;
-	b->lm--;
-	b->cp=-b->cp;
+void make_move(boardType * b, int input){
+	set_state(&b->grid[input][b->heights[input]],b->currentPlayer);
+	b->heights[input]++;
+	b->lastMove;
+	b->moves[b->lastMove]=input;
+	b->currentPlayer=-b->currentPlayer;
 }
 
-
-int validMovesLeft(board_type * b){
-	return b->lm<((b->cols*b->rows)-1);
+void undo_move(boardType * b){
+	set_state(&(b->grid[b->moves[b->lastMove]][b->heights[b->moves[b->lastMove]]-1]),(empty));
+	b->heights[b->moves[b->lastMove]]--;
+	b->lastMove--;
+	b->currentPlayer=-b->currentPlayer;
 }
-//check this program
-int getScore(point_type * points[]) {
-	int playerone=0;
-	int playertwo=0;
-	int i;
 
-	for( i=0;i<4;i++){
-		if(getState(points[i])==PLAYER_ONE){
-			playerone++;
-		}else if(getState(points[i])==PLAYER_TWO){
-			playertwo++;
+int winner_is(boardType * b){
+	int i,j;
+	int score;
+	//g_print("size %d\n",b->lineSize);
+	for( i=0;i<b->lineSize;i++){
+        score=0;
+		for(j=0;j<4;j++){
+			score +=b->possibleLines[i][j]->state;
+			if(score == 4)g_print("line[i]finally red %d\n",i,score);
+			if(score < 0)g_print("line[i]finally blue %d\n",i,score);
+
+		}
+		if(score==4){
+			return playerOne;
+		}else if(score==-4){
+			return playerTwo;
 		}
 	}
-
-	if((playerone+playertwo>0) && (!(playerone>0 && playertwo>0))){
-		return (playerone!=0)?playerone:playertwo;
-	}else{
-		return 0;
-	}
-}
-
-int getStrength(board_type * b){
-	int sum=0;
-	int weights[] = {0,1,10,50,600};
-	int i;
-
-	for( i=0;i<69;i++){
-		sum+=(getScore(b->cl[i])>0)?weights[abs(getScore(b->cl[i]))]:-weights[abs(getScore(b->cl[i]))];
-	}
-
-	return sum+(b->cp==PLAYER_ONE?16:-16);
-}
-
-int winnerIs(board_type * b){
-	int i;
-	for( i=0;i<69;i++){
-		if(getScore(b->cl[i])==4)
-		{
-		return PLAYER_ONE;
-		}
-		else if(getScore(b->cl[i])==-4)
-		{
-		return PLAYER_TWO;
-		}
-	}
+/*
+	for(i=0;i<6;i++){
+        for(j=0;j<7;j++){
+            test +=b->grid[i][j].state;
+            if(test > 0)g_print("finally test%d\n",test);
+        }
+	}*/
 	return 0;
 }
 
-int cp(board_type * b){
-	return b->cp;
+char * to_string(boardType * b){
+	char * temp = (char *)malloc(b->rows*(b->cols+1)*sizeof(char)+1);
+	char * curr = temp;
+	int y;
+	int x;
+	for( y=b->rows-1;y>-1;y--){
+		for( x=0;x<b->cols;x++){
+			if(get_state(&b->grid[x][y])==empty){
+				*curr = '-';
+			}else if(get_state(&b->grid[x][y])==playerOne){
+				*curr = 'O';
+			}else{
+				*curr = 'X';
+			}
+			curr++;
+		}
+		*curr = '\n';
+		curr++;
+	}
+	return temp;
 }
 
-int getRandomPlayerMove(board_type *b){
+int get_current_player(boardType * b){
+	return b->currentPlayer;
+}
+
+int get_random_player_move(boardType *b){
 	int val =-1;
 	int possible[7];
 	int i;
 	for( i = 0; i <7; i++)
 	{
-		if(validMove(b,i)){
+		if(valid_move(b,i)){
 			possible[i] = 1;
 		}else{
 			possible[i] = 0;
@@ -246,122 +239,84 @@ int getRandomPlayerMove(board_type *b){
 	return val;
 }
 
-int minValue(board_type * cB, int ply);
-int maxValue(board_type * cB, int ply);
-// should return a number
-int getReasonedMove(board_type * cB){
-	int moves[7];
-	int highest = 0;
-	int i;
-	for( i=0;i<7;i++)
-	{
-		moves[i] = INT_MIN;
-		if(validMove(cB, i))
-		{
-			makeMove(cB,i);
-			moves[i] = minValue(cB,4);
-			//check this if doing what.
-			if(moves[i]>=moves[highest])
-			highest=i;
-			undoMove(cB);
-		}
-	}
-	return highest;
-}
-
-// don't change this unless you understand it
-int minValue(board_type * cB, int ply){
-	int moves[7];
-	int lowest = 0;
-	int i;
-	for( i=0;i<7;i++){
-		moves[i] = INT_MAX;
-		if(validMove(cB,i)){
-			makeMove(cB,i);
-			if((winnerIs(cB) == 0) && ply>0){
-				moves[i] = maxValue(cB,ply-1);
-			}else{
-				moves[i] = -getStrength(cB);
-			}
-			//check this if doing what.
-			if(moves[i]<moves[lowest])
-			lowest=i;
-			undoMove(cB);
-		}
-
-	}
-
-	return moves[lowest];
-
-}
-//careful with this
-int maxValue(board_type * cB, int ply){
-	int moves[7];
-	int highest = 0;
-	int i;
-	for( i=0;i<7;i++)
-	{
-		moves[i] = INT_MAX;
-		if(validMove(cB,i)){
-			makeMove(cB,i);
-			if((winnerIs(cB) == 0) && ply>0){
-				moves[i] = minValue(cB,ply-1);
-			}
-			else
-			moves[i] =-getStrength(cB);
-			if(moves[i]<moves[highest])
-			highest=i;
-			undoMove(cB);
-		}
-	}
-
-	return moves[highest];
-}
-
-
+struct input{
+    boardType * bInput;
+    int slot;
+};
 
 gint delete_event( GtkWidget *widget,GdkEvent *event, gpointer user_data ){
     gtk_main_quit();
     return(FALSE);
 }
 
-
-void dropCoin(struct send_Data * arg ){
-    //printf("%d\n",arg.slot);
-     //makeMove(arg.slot,0);
+void wait(int secs) {
+    #ifdef _WIN32
+        Sleep( 500*secs);
+    #else
+        Sleep(secs);
+    #endif //
 }
 
-void newWindow(GtkWidget *win){
-  gtk_container_set_border_width (GTK_CONTAINER (win), 10);
-  gtk_window_set_title (GTK_WINDOW (win), "Connect4 Game");
-  gtk_window_set_position (GTK_WINDOW (win), GTK_WIN_POS_CENTER);
-  gtk_widget_realize (win);
-  gtk_window_set_default_size(GTK_WINDOW(win), 867, 460);
-  gtk_window_set_resizable (GTK_WINDOW(win), FALSE);
-  /* Catch event close main window */
-  gtk_signal_connect (win, "delete_event", GTK_SIGNAL_FUNC (delete_event), NULL);
+void drop_coin(GtkWidget *widget,gpointer user_data){
+    int randomMove,winner;
+    inputType *input = (inputType *)user_data;
+
+    gtk_image_set_from_file(coin[input->bInput->heights[input->slot]][input->slot],"CoinA.png");
+    gtk_widget_show(coin[input->bInput->heights[input->slot]][input->slot]);
+    make_move(input->bInput,input->slot);
+    gtk_image_set_from_file(playerImage,"CoinBTURN.png");
+    winner = winner_is(input->bInput);
+    if(winner==1){
+        g_print("red win");
+        exit;
+    }else if(winner==-1){
+        g_print("blue win");
+        exit;
+    }
+    //wait(3);
+    randomMove = get_random_player_move(input->bInput);
+    gtk_image_set_from_file(coin[input->bInput->heights[randomMove]][randomMove],"CoinB.png");
+    make_move(input->bInput,randomMove);
+    gtk_image_set_from_file(playerImage,"CoinATURN.png");
+    winner = winner_is(input->bInput);
+    if(winner==1)g_print("red win");
+    if(winner==-1)g_print("blue win");
+    //g_print("%d\n",1);
+    //g_print("%d\n",input->slot);
+    //gtk_image_set_from_file(coin[0][2],"CoinA.png");
 }
 
-void windowSetting(GtkWidget *win, board_type *b, GtkWidget *button[7],GtkWidget *coin[6][7],GtkWidget *playerImage){
+void new_window(GtkWidget *win){
+
+
+    gtk_container_set_border_width (GTK_CONTAINER (win), 10);
+    gtk_window_set_title (GTK_WINDOW (win), "Connect4 Game");
+    gtk_window_set_position (GTK_WINDOW (win), GTK_WIN_POS_CENTER);
+    gtk_widget_realize (win);
+    gtk_window_set_default_size(GTK_WINDOW(win), 867, 460);
+    gtk_window_set_resizable (GTK_WINDOW(win), FALSE);
+    /* Catch event close main window */
+    g_signal_connect (win, "delete_event", GTK_SIGNAL_FUNC (delete_event), NULL);
+}
+
+void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
     int i,j,t=5;
-    //GtkWidget *button[7];
-    GtkWidget *levelButton[3];
+	GtkWidget *levelButton[3];
     GtkWidget *playButton[3];
     GtkWidget *quitButton;
     GtkWidget *mainTable;
     GtkWidget *boardTable;
     GtkWidget *scoreTable;
-    //GtkWidget *coin[6][7];
-//GtkWidget *image[7],*playerImage,*iconImage1,*iconImage2,*iconImage3;
-    GtkWidget *image[7],*iconImage1,*iconImage2,*iconImage3,*winnerImage;
+    GtkWidget *image[cols],*winnerImage;
     GtkWidget *newGameButton;
     GtkWidget *newMatchButton;
-    GtkWidget *frame1,*frame2,*frame3,*frame4,*frame5,*frame6;
+    GtkWidget *frame1,*frame2,*frame3,*frame4,*frame5;
+    GtkWidget *label1,*turnLabel;
     GtkWidget *hbox1,*hbox2,*hbox3;
     GtkWidget *vbox1,*vbox2,*vbox3,*vbox4,*vbox5,*vbox6;
-    GtkWidget *label1,*playerLabel,*scoreLabel1,*scoreLabel2,*turnLabel,*winnerLabel;
     GdkColor color;
     GString *str[7];
+
     mainTable = gtk_table_new(8,11,TRUE);
     gtk_container_add (GTK_CONTAINER (win), mainTable);
 
@@ -385,8 +340,6 @@ void windowSetting(GtkWidget *win, board_type *b, GtkWidget *button[7],GtkWidget
     gtk_container_add (GTK_CONTAINER (frame2), vbox2);
 
     levelButton[0] = gtk_button_new_with_label("Easy");
-    //gdk_color_parse()
-    //gtk_widget_modify_fg (levelButton[0], GTK_STATE_NORMAL, &color);
     gtk_container_add (GTK_CONTAINER (vbox2), levelButton[0]);
 
     levelButton[1] = gtk_button_new_with_label("Medium");
@@ -399,14 +352,14 @@ void windowSetting(GtkWidget *win, board_type *b, GtkWidget *button[7],GtkWidget
     gtk_table_attach_defaults (GTK_TABLE(mainTable), frame3, 2, 4, 3, 5);
     vbox3 = gtk_vbox_new (FALSE, 0);
     gtk_container_add (GTK_CONTAINER (frame3), vbox3);
-    playerImage = gtk_image_new_from_file("CoinB25.png");
+    playerImage = gtk_image_new_from_file("CoinATURN.png");
     gtk_container_add (GTK_CONTAINER (vbox3), playerImage);
 
     frame4 = gtk_frame_new ("WINNER");
     gtk_table_attach_defaults (GTK_TABLE(mainTable), frame4, 2, 4, 5, 7);
     vbox4 = gtk_vbox_new (FALSE, 0);
     gtk_container_add(GTK_CONTAINER (frame4),vbox4);
-    winnerImage= gtk_image_new_from_file("CoinB25.png");
+    winnerImage= gtk_image_new_from_file("NoWINNER.png");
     gtk_container_add(GTK_CONTAINER (vbox4),winnerImage);
 
 
@@ -419,26 +372,6 @@ void windowSetting(GtkWidget *win, board_type *b, GtkWidget *button[7],GtkWidget
 
     playButton[1] = gtk_button_new_with_label("Quit");
     gtk_container_add (GTK_CONTAINER (vbox5), playButton[1]);
-    /*
-    hbox1 = gtk_hbox_new(FALSE,0);
-    gtk_container_add (GTK_CONTAINER (vbox5), hbox1);
-    hbox2 = gtk_hbox_new(FALSE,0);
-    gtk_container_add (GTK_CONTAINER (vbox5), hbox2);
-    iconImage1 = gtk_image_new_from_file("CoinBicon.png");
-    gtk_container_add (GTK_CONTAINER (hbox1), iconImage1);
-    scoreLabel1 = gtk_label_new("0");
-    gtk_container_add (GTK_CONTAINER (hbox1), scoCoinAreLabel1);
-    iconImage2 = gtk_image_new_from_file("CoinAicon.png");
-    gtk_container_add (GTK_CONTAINER (hbox2), iconImage2);
-    scoreLabel2 = gtk_label_new("0");
-    gtk_container_add (GTK_CONTAINER (hbox2), scoreLabel2);
-
-    hbox3 = gtk_hbox_new(FALSE,0);
-    gtk_container_add (GTK_CONTAINER (vbox5), hbox3);
-    winnerLabel = gtk_label_new("Winner:");
-    gtk_container_add (GTK_CONTAINER (hbox3), winnerLabel);
-    iconImage3 = gtk_image_new_from_file("CoinCicon.png");
-    gtk_container_add (GTK_CONTAINER (hbox3), iconImage3);*/
 
     turnLabel = gtk_label_new("Design Copyright 2014 by bizz-enigma.");
     gtk_table_attach_defaults (GTK_TABLE(mainTable), turnLabel, 0, 11, 7, 8);
@@ -452,96 +385,60 @@ void windowSetting(GtkWidget *win, board_type *b, GtkWidget *button[7],GtkWidget
     str[5] = "slot5.png";
     str[6] = "slot6.png";
 
-    for(j=0;j<7;j++){
+    for(j=0;j<cols;j++){
         button[j] = gtk_button_new();
         image[j] = gtk_image_new_from_file(str[j]);
         gtk_button_set_image(button[j],image[j]);
         gtk_table_attach_defaults (GTK_TABLE(mainTable), button[j], j+4, j+5, 0, 1);
     }
 
-    boardTable = gtk_table_new (6,7,FALSE);
+    boardTable = gtk_table_new (ROWS,COLS,FALSE);
     gtk_table_attach_defaults (GTK_TABLE(mainTable), boardTable, 4, 11, 1, 7);
 
-    for(i=0;i<6;i++){
-        for(j=0;j<7;j++){
+    for(i=0;i<rows;i++){
+        for(j=0;j<cols;j++){
             coin[i][j] = gtk_image_new_from_file("CoinC.png");
             gtk_table_attach_defaults (GTK_TABLE(boardTable), coin[i][j], j, j+1, t, t+1);
         }
         t-=1;
     }
 
-
-    gtk_image_set_from_file(coin[0][2],"CoinB.png");
-    gtk_image_set_from_file(coin[0][4],"CoinB.png");
-    gtk_image_set_from_file(coin[0][6],"CoinB.png");
-    gtk_image_set_from_file(coin[1][3],"CoinB.png");
-    gtk_image_set_from_file(coin[2][4],"CoinB.png");
-    gtk_image_set_from_file(coin[3][5],"CoinB.png");
-
-    gtk_image_set_from_file(coin[0][3],"CoinA.png");
-    gtk_image_set_from_file(coin[0][5],"CoinA.png");
-    gtk_image_set_from_file(coin[1][5],"CoinA.png");
-    gtk_image_set_from_file(coin[2][5],"CoinA.png");
-    gtk_image_set_from_file(coin[1][4],"CoinA.png");
-
-
-
-    /*gtk_signal_connect (button[1], "clicked", GTK_SIGNAL_FUNC (dropCoin), NULL);
-    gtk_signal_connect (button[2], "clicked", GTK_SIGNAL_FUNC (dropCoin), NULL);
-    gtk_signal_connect (button[3], "clicked", GTK_SIGNAL_FUNC (dropCoin), NULL);
-    gtk_signal_connect (button[4], "clicked", GTK_SIGNAL_FUNC (dropCoin), NULL);
-    gtk_signal_connect (button[5], "clicked", GTK_SIGNAL_FUNC (dropCoin), NULL);
-    gtk_signal_connect (button[6], "clicked", GTK_SIGNAL_FUNC (dropCoin), NULL);*/
-
 }
 
-struct sendData{
-	board_type * b;
-	int slot;
-	GtkWidget *coin;
-};
-typedef struct sendData send_Data;
-int main (int argc, char *argv[])
-{
-    /* Gtk variable declaration */
-    GtkWidget *win = NULL;
-    GtkWidget *button[7];
-    GtkWidget *playerImage;
-    GtkWidget *coin[6][7];
-    GtkObject *myobj;
 
-    /* Functional declaration */
-    board_type * b = createBoard(7,6);
 
-    srand (time(NULL));
-    /* Gtk initialization */
-    g_log_set_handler ("Gtk", G_LOG_LEVEL_WARNING, (GLogFunc) gtk_false, NULL); //delete at the end
-    gtk_init (&argc, &argv);
-    g_log_set_handler ("Gtk", G_LOG_LEVEL_WARNING, g_log_default_handler, NULL); //delete at the end
+int main(int argc, char** argv) {
+	GtkWidget *win = NULL;
+	GtkWidget *button[7];
+	int input,i;
+	boardType * b = create_board(ROWS,COLS);
 
-    /* Create the main window */
+	srand (time(NULL));
+
+	g_log_set_handler ("Gtk", G_LOG_LEVEL_WARNING, (GLogFunc) gtk_false, NULL); //delete at the end
+	gtk_init (&argc, &argv);
+	g_log_set_handler ("Gtk", G_LOG_LEVEL_WARNING, g_log_default_handler, NULL); //delete at the end
+
     win = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-    newWindow(win);
-    windowSetting(win,b,button,coin,playerImage);
+    new_window(win);
+	display_setting(win,button,ROWS,COLS);
 
-
-    send_Data * data = (send_Data*) malloc(sizeof(send_Data));
-    data.b =b;
-    data.coin = coin;
-    data.slot =0;
-    /*
-    int i;
+	inputType data[COLS];
     for(i=0;i<7;i++){
-        data[i].b = b;
-        data[i].coin = coin;
+        data[i].bInput = b;
         data[i].slot = i;
-    }*/
-
-    //dropCoin(&data);
-    //gtk_signal_connect(GTK_OBJECT(button[0]), "clicked", GTK_SIGNAL_FUNC(dropCoin),&data);
+    }
+	g_signal_connect (button[0], "clicked", G_CALLBACK (drop_coin), &data[0]);
+    g_signal_connect (button[1], "clicked", G_CALLBACK (drop_coin), &data[1]);
+    g_signal_connect (button[2], "clicked", G_CALLBACK (drop_coin), &data[2]);
+    g_signal_connect (button[3], "clicked", G_CALLBACK (drop_coin), &data[3]);
+    g_signal_connect (button[4], "clicked", G_CALLBACK (drop_coin), &data[4]);
+    g_signal_connect (button[5], "clicked", G_CALLBACK (drop_coin), &data[5]);
+    g_signal_connect (button[6], "clicked", G_CALLBACK (drop_coin), &data[6]);
 
     gtk_widget_show_all (win);
     gtk_main ();
-    //free(data);
-    return 0;
+
+
+	return 0;
 }

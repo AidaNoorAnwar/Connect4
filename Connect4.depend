@@ -2250,11 +2250,12 @@
 1392882230 c:\gtk\include\gtk-2.0\gtk\gtktipsquery.h
 	<gtk/gtk.h>
 
-1393326444 source:f:\study\sem2\sd\connect4\main.c
+1394449378 source:f:\study\sem2\sd\connect4\main.c
 	<stdlib.h>
 	<stdio.h>
 	<time.h>
 	<limits.h>
 	<gtk/gtk.h>
-	<gdk/gdk.h>
+	<windows.h>
+	<unitstd.h>
 
