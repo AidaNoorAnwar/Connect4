@@ -20,9 +20,9 @@ typedef struct point pointType;
 typedef struct board boardType;
 typedef struct input inputType;
 
-//GtkWidget * coin[ROWS][COLS];
-//GtkWidget * playerImage;
-//GtkWidget * winnerImage;
+GtkWidget * coin[ROWS][COLS];
+GtkWidget * playerImage;
+GtkWidget * winnerImage;
 
 
 struct point{
@@ -60,7 +60,6 @@ struct board{
     pointType *** possibleLines;
 };
 
-/* Function to generate mapping between grid and possible line patterns */
 pointType *** generate_possible_lines(pointType ** grid, int rows, int cols, int lineSize){
 	int i,t;
 	int y,x;
@@ -108,15 +107,6 @@ pointType *** generate_possible_lines(pointType ** grid, int rows, int cols, int
 	return lines;
 }
 
-void destroy_possible_lines(pointType *** destroyPossibleLines,int destroyLineSize){
-    int i,j;
-    for(i = 0; i < destroyLineSize; i++){
-        for(j = 0; j < 4; j++)
-		free(destroyPossibleLines[i][j]);
-	}
-	free(destroyPossibleLines);
-}
-
 boardType * create_board( int bRows, int bCols){
     int i,j;
 	boardType * b = (boardType*)malloc(sizeof(boardType));
@@ -141,7 +131,7 @@ boardType * create_board( int bRows, int bCols){
 	/* lineSize is the number of possible winning lines. */
 	b->lineSize = (b->rows/4+b->rows%4)*(b->cols/4+b->cols%4)*2+b->cols*(b->rows%4+b->rows/4)+b->rows*(b->cols%4+b->cols/4);
 	b->possibleLines = generate_possible_lines(b->grid,b->rows,b->cols,b->lineSize);
-
+	//printf("%d",b->possibleLines[1][2].state);
 	return b;
 }
 
@@ -252,10 +242,7 @@ int get_random_player_move(boardType *b){
 }
 
 struct input{
-    boardType * boardInput;
-    GtkWidget ** coinInput;
-    GtkWidget * playerImageInput;
-    GtkWidget * winnerImageInput;
+    boardType * bInput;
     int slot;
 };
 
@@ -276,34 +263,36 @@ void drop_coin(GtkWidget *widget,gpointer user_data){
     int randomMove,winner;
     inputType *input = (inputType *)user_data;
 
-    g_image_set_from_file(input->coinInput[input->boardInput->heights[input->slot]][input->slot],"CoinA.png");
-    g_widget_show(input->coinInput[input->boardInput->heights[input->slot]][input->slot]);
-    make_move(input->boardInput,input->slot);
-    g_image_set_from_file(input->playerImageInput,"CoinBTURN.png");
-    winner = winner_is(input->boardInput);
+    gtk_image_set_from_file(coin[input->bInput->heights[input->slot]][input->slot],"CoinA.png");
+    gtk_widget_show(coin[input->bInput->heights[input->slot]][input->slot]);
+    make_move(input->bInput,input->slot);
+    gtk_image_set_from_file(playerImage,"CoinBTURN.png");
+    winner = winner_is(input->bInput);
     if(winner==1){
         g_print("red win");
-        g_image_set_from_file(input->winnerImageInput,"CoinAWIN.png");
+        gtk_image_set_from_file(winnerImage,"CoinAWIN.png");
         exit;
     }else if(winner==-1){
-        g_image_set_from_file(input->winnerImageInput,"CoinBWIN.png");
+        gtk_image_set_from_file(winnerImage,"CoinBWIN.png");
         exit;
     }
     //wait(3);
-    randomMove = get_random_player_move(input->boardInput);
-    g_image_set_from_file(input->coinInput[input->boardInput->heights[randomMove]][randomMove],"CoinB.png");
-    make_move(input->boardInput,randomMove);
-
-    g_image_set_from_file(input->playerImageInput,"CoinATURN.png");
-    winner = winner_is(input->boardInput);
+    randomMove = get_random_player_move(input->bInput);
+    gtk_image_set_from_file(coin[input->bInput->heights[randomMove]][randomMove],"CoinB.png");
+    make_move(input->bInput,randomMove);
+    gtk_image_set_from_file(playerImage,"CoinATURN.png");
+    winner = winner_is(input->bInput);
     if(winner==1){
         g_print("red win");
-        g_image_set_from_file(input->winnerImageInput,"CoinAWIN.png");
+        gtk_image_set_from_file(winnerImage,"CoinAWIN.png");
         exit;
     }else if(winner==-1){
-        g_image_set_from_file(input->winnerImageInput,"CoinBWIN.png");
+        gtk_image_set_from_file(winnerImage,"CoinBWIN.png");
         exit;
     }
+    //g_print("%d\n",1);
+    //g_print("%d\n",input->slot);
+    //gtk_image_set_from_file(coin[0][2],"CoinA.png");
 }
 
 void new_window(GtkWidget *win){
@@ -319,8 +308,8 @@ void new_window(GtkWidget *win){
     g_signal_connect (win, "delete_event", GTK_SIGNAL_FUNC (delete_event), NULL);
 }
 
-void display_setting(GtkWidget *win, GtkWidget * buttonDisplay[7], GtkWidget ** coinDisplay, GtkWidget *playerImageDisplay, GtkWidget *winnerImageDisplay, int rows, int cols){
-    int i,j;
+void display_setting(GtkWidget *win,GtkWidget *button[7], GtkWidget *winnerImage, int rows, int cols){
+    int i,j,t=5;
 	GtkWidget *levelButton[3];
     GtkWidget *playButton[3];
     GtkWidget *quitButton;
@@ -329,15 +318,15 @@ void display_setting(GtkWidget *win, GtkWidget * buttonDisplay[7], GtkWidget ** 
     GtkWidget *scoreTable;
     GtkWidget *image[cols];
     GtkWidget *newGameButton;
-   //GtkWidget *newMatchButton;
+    GtkWidget *newMatchButton;
     GtkWidget *frame1,*frame2,*frame3,*frame4,*frame5;
     GtkWidget *label1,*turnLabel;
-    //GtkWidget *hbox1,*hbox2,*hbox3;
+    GtkWidget *hbox1,*hbox2,*hbox3;
     GtkWidget *vbox1,*vbox2,*vbox3,*vbox4,*vbox5,*vbox6;
     GdkColor color;
-    GString *str[cols];
+    GString *str[7];
 
-    mainTable = gtk_table_new(2+rows,4+cols,TRUE);
+    mainTable = gtk_table_new(8,11,TRUE);
     gtk_container_add (GTK_CONTAINER (win), mainTable);
 
 
@@ -372,15 +361,15 @@ void display_setting(GtkWidget *win, GtkWidget * buttonDisplay[7], GtkWidget ** 
     gtk_table_attach_defaults (GTK_TABLE(mainTable), frame3, 2, 4, 3, 5);
     vbox3 = gtk_vbox_new (FALSE, 0);
     gtk_container_add (GTK_CONTAINER (frame3), vbox3);
-    playerImageDisplay = gtk_image_new_from_file("CoinATURN.png");
-    gtk_container_add (GTK_CONTAINER (vbox3), playerImageDisplay);
+    playerImage = gtk_image_new_from_file("CoinATURN.png");
+    gtk_container_add (GTK_CONTAINER (vbox3), playerImage);
 
     frame4 = gtk_frame_new ("WINNER");
     gtk_table_attach_defaults (GTK_TABLE(mainTable), frame4, 2, 4, 5, 7);
     vbox4 = gtk_vbox_new (FALSE, 0);
     gtk_container_add(GTK_CONTAINER (frame4),vbox4);
-    winnerImageDisplay= gtk_image_new_from_file("NoWINNER.png");
-    gtk_container_add(GTK_CONTAINER (vbox4),winnerImageDisplay);
+    winnerImage= gtk_image_new_from_file("NoWINNER.png");
+    gtk_container_add(GTK_CONTAINER (vbox4),winnerImage);
 
 
     frame5 = gtk_frame_new ("GAME");
@@ -394,7 +383,7 @@ void display_setting(GtkWidget *win, GtkWidget * buttonDisplay[7], GtkWidget ** 
     gtk_container_add (GTK_CONTAINER (vbox5), playButton[1]);
 
     turnLabel = gtk_label_new("Design Copyright 2014 by bizz-enigma.");
-    gtk_table_attach_defaults (GTK_TABLE(mainTable), turnLabel, 0, 4+cols, 1+rows, 2+rows);
+    gtk_table_attach_defaults (GTK_TABLE(mainTable), turnLabel, 0, 11, 7, 8);
 
 
     str[0] = "slot0.png";
@@ -405,69 +394,33 @@ void display_setting(GtkWidget *win, GtkWidget * buttonDisplay[7], GtkWidget ** 
     str[5] = "slot5.png";
     str[6] = "slot6.png";
 
-    //buttonDisplay = create_button(cols);
     for(j=0;j<cols;j++){
-        buttonDisplay[j] = gtk_button_new();
+        button[j] = gtk_button_new();
         image[j] = gtk_image_new_from_file(str[j]);
-        gtk_button_set_image(buttonDisplay[j],image[j]);
-        gtk_table_attach_defaults (GTK_TABLE(mainTable), buttonDisplay[j], j+4, j+5, 0, 1);
+        gtk_button_set_image(button[j],image[j]);
+        gtk_table_attach_defaults (GTK_TABLE(mainTable), button[j], j+4, j+5, 0, 1);
     }
 
-    //boardTable = gtk_table_new (ROWS,COLS,FALSE);
-    gtk_table_attach_defaults (GTK_TABLE(mainTable), boardTable, 4, 4+cols, 1, 1+rows);
-    coinDisplay = create_coin(rows,cols);
-    init_board_display(boardTable,coinDisplay,rows,cols);
+    boardTable = gtk_table_new (ROWS,COLS,FALSE);
+    gtk_table_attach_defaults (GTK_TABLE(mainTable), boardTable, 4, 11, 1, 7);
 
-}
-
-void init_board_display(GtkWidget * boardTable, GtkWidget ** boardCoin,int rows, int cols){
-    int i,j;
-    int t=5; //how did i get t=5
     for(i=0;i<rows;i++){
         for(j=0;j<cols;j++){
-            boardCoin[i][j] = gtk_image_new_from_file("CoinC.png");
-            gtk_table_attach_defaults (GTK_TABLE(boardTable), boardCoin[i][j], j, j+1, t, t+1);
+            coin[i][j] = gtk_image_new_from_file("CoinC.png");
+            gtk_table_attach_defaults (GTK_TABLE(boardTable), coin[i][j], j, j+1, t, t+1);
         }
         t-=1;
     }
-}
 
-GtkWidget ** create_coin(int rows, int cols){
-    int i;
-    GtkWidget ** createCoin = (GtkWidget **)malloc(rows*sizeof(GtkWidget *));
-    for(i=0;i<rows;i++){
-        createCoin[i]=(GtkWidget *)malloc(cols*sizeof(GtkWidget ));
-    }
-    return createCoin;
-}
-
-GtkWidget * create_button(int cols){
-    GtkWidget * createButton = (GtkWidget *)malloc(cols*sizeof(GtkWidget));
-    return createButton;
 }
 
 
-
-void destroy_coin(GtkWidget ** destroyCoin){
-    int i;
-    for(i=0;i<rows;i++){
-        free(createCoin[j]);
-    }
-    free(createCoin);
-}
 
 int main(int argc, char** argv) {
-	/* main gtk widget initialization */
 	GtkWidget *win = NULL;
-	GtkWidget button[7];
-	GtkWidget **coin;
-	GtkWidget * playerImage;
-    GtkWidget * winnerImage;
-
+	GtkWidget *button[7];
 	int input,i;
-    boardType * b;
-
-	b = create_board(ROWS,COLS);
+	boardType * b = create_board(ROWS,COLS);
 
 	srand (time(NULL));
 
@@ -477,23 +430,20 @@ int main(int argc, char** argv) {
 
     win = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     new_window(win);
-	display_setting(win,&button,coin,playerImage,winnerImage,ROWS,COLS);
-    /*
+	display_setting(win,button,winnerImage,ROWS,COLS);
+
 	inputType data[COLS];
     for(i=0;i<7;i++){
-        data[i].boardInput = b;
+        data[i].bInput = b;
         data[i].slot = i;
-        g_signal_connect (button[i], "clicked", G_CALLBACK (drop_coin), &data[i]);
-    }*/
-
-    /* action events */
-	/*g_signal_connect (button[0], "clicked", G_CALLBACK (drop_coin), &data[0]);
+    }
+	g_signal_connect (button[0], "clicked", G_CALLBACK (drop_coin), &data[0]);
     g_signal_connect (button[1], "clicked", G_CALLBACK (drop_coin), &data[1]);
     g_signal_connect (button[2], "clicked", G_CALLBACK (drop_coin), &data[2]);
     g_signal_connect (button[3], "clicked", G_CALLBACK (drop_coin), &data[3]);
     g_signal_connect (button[4], "clicked", G_CALLBACK (drop_coin), &data[4]);
     g_signal_connect (button[5], "clicked", G_CALLBACK (drop_coin), &data[5]);
-    g_signal_connect (button[6], "clicked", G_CALLBACK (drop_coin), &data[6]);*/
+    g_signal_connect (button[6], "clicked", G_CALLBACK (drop_coin), &data[6]);
 
     gtk_widget_show_all (win);
     gtk_main ();
