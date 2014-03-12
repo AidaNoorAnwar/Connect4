@@ -41,7 +41,7 @@ void delete_Point(pointType * p){
 
 void set_state(pointType * p, int player){
     p->state=player;
-    g_print("set state %d\n",p->state);
+    //g_print("set state %d\n",p->state);
 }
 
 int get_state(pointType * p){
@@ -174,7 +174,7 @@ int winner_is(boardType * b){
 			score +=b->possibleLines[i][j]->state;
 			if(score == 4)g_print("line[i]finally red %i\n",i,score);
 			if(score < 0){
-                g_print("line[i]finally blue %d\n",i,score);
+                //g_print("line[i]finally blue %d\n",i,score);
 			}
 		}
 		if(score==4){
@@ -262,18 +262,17 @@ void wait(int secs) {
 void drop_coin(GtkWidget *widget,gpointer user_data){
     int randomMove,winner;
     inputType *input = (inputType *)user_data;
+    if(input->bInput->heights[input->slot]==8){
+        exit;
+    }
 
     gtk_image_set_from_file(coin[input->bInput->heights[input->slot]][input->slot],"CoinA.png");
-    gtk_widget_show(coin[input->bInput->heights[input->slot]][input->slot]);
     make_move(input->bInput,input->slot);
     gtk_image_set_from_file(playerImage,"CoinBTURN.png");
     winner = winner_is(input->bInput);
     if(winner==1){
         g_print("red win");
         gtk_image_set_from_file(winnerImage,"CoinAWIN.png");
-        exit;
-    }else if(winner==-1){
-        gtk_image_set_from_file(winnerImage,"CoinBWIN.png");
         exit;
     }
     //wait(3);
@@ -282,22 +281,13 @@ void drop_coin(GtkWidget *widget,gpointer user_data){
     make_move(input->bInput,randomMove);
     gtk_image_set_from_file(playerImage,"CoinATURN.png");
     winner = winner_is(input->bInput);
-    if(winner==1){
-        g_print("red win");
-        gtk_image_set_from_file(winnerImage,"CoinAWIN.png");
-        exit;
-    }else if(winner==-1){
+    if(winner==-1){
         gtk_image_set_from_file(winnerImage,"CoinBWIN.png");
         exit;
     }
-    //g_print("%d\n",1);
-    //g_print("%d\n",input->slot);
-    //gtk_image_set_from_file(coin[0][2],"CoinA.png");
 }
 
 void new_window(GtkWidget *win){
-
-
     gtk_container_set_border_width (GTK_CONTAINER (win), 10);
     gtk_window_set_title (GTK_WINDOW (win), "Connect4 Game");
     gtk_window_set_position (GTK_WINDOW (win), GTK_WIN_POS_CENTER);
@@ -308,7 +298,7 @@ void new_window(GtkWidget *win){
     g_signal_connect (win, "delete_event", GTK_SIGNAL_FUNC (delete_event), NULL);
 }
 
-void display_setting(GtkWidget *win,GtkWidget *button[7], GtkWidget *winnerImage, int rows, int cols){
+void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
     int i,j,t=5;
 	GtkWidget *levelButton[3];
     GtkWidget *playButton[3];
@@ -430,7 +420,7 @@ int main(int argc, char** argv) {
 
     win = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     new_window(win);
-	display_setting(win,button,winnerImage,ROWS,COLS);
+	display_setting(win,button,ROWS,COLS);
 
 	inputType data[COLS];
     for(i=0;i<7;i++){
