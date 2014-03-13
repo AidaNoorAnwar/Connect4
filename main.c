@@ -3,6 +3,7 @@
 #include <time.h>
 #include <limits.h>
 #include <gtk/gtk.h>
+#include <gdk/gdk.h>
 
 #ifdef _WIN32
     #include <windows.h>
@@ -19,10 +20,16 @@ static const int empty=0;
 typedef struct point pointType;
 typedef struct board boardType;
 typedef struct input inputType;
+typedef struct level levelType;
+typedef enum { false, true } bool;
+int gameDifficultyLevel;
+bool playStatus;
 
 GtkWidget * coin[ROWS][COLS];
 GtkWidget * playerImage;
 GtkWidget * winnerImage;
+GtkWidget * levelButton[3];
+GtkWidget * button[COLS];
 
 
 struct point{
@@ -41,7 +48,6 @@ void delete_Point(pointType * p){
 
 void set_state(pointType * p, int player){
     p->state=player;
-    //g_print("set state %d\n",p->state);
 }
 
 int get_state(pointType * p){
@@ -167,15 +173,10 @@ void undo_move(boardType * b){
 int winner_is(boardType * b){
 	int i,j;
 	int score;
-	//g_print("size %d\n",b->lineSize);
 	for( i=0;i<b->lineSize;i++){
         score=0;
 		for(j=0;j<4;j++){
 			score +=b->possibleLines[i][j]->state;
-			if(score == 4)g_print("line[i]finally red %i\n",i,score);
-			if(score < 0){
-                //g_print("line[i]finally blue %d\n",i,score);
-			}
 		}
 		if(score==4){
 			return playerOne;
@@ -261,30 +262,51 @@ void wait(int secs) {
 
 void drop_coin(GtkWidget *widget,gpointer user_data){
     int randomMove,winner;
+    GtkWidget *dialog;
     inputType *input = (inputType *)user_data;
-    if(input->bInput->heights[input->slot]==8){
-        exit;
+    if(playStatus == false)return;
+    if(input->bInput->heights[input->slot]==6){
+        return;
     }
-
     gtk_image_set_from_file(coin[input->bInput->heights[input->slot]][input->slot],"CoinA.png");
     make_move(input->bInput,input->slot);
-    gtk_image_set_from_file(playerImage,"CoinBTURN.png");
     winner = winner_is(input->bInput);
     if(winner==1){
-        g_print("red win");
         gtk_image_set_from_file(winnerImage,"CoinAWIN.png");
-        exit;
+        playStatus = false;
+        return;
     }
+    gtk_image_set_from_file(playerImage,"CoinBTURN.png");
     //wait(3);
     randomMove = get_random_player_move(input->bInput);
     gtk_image_set_from_file(coin[input->bInput->heights[randomMove]][randomMove],"CoinB.png");
     make_move(input->bInput,randomMove);
-    gtk_image_set_from_file(playerImage,"CoinATURN.png");
     winner = winner_is(input->bInput);
     if(winner==-1){
         gtk_image_set_from_file(winnerImage,"CoinBWIN.png");
-        exit;
+        playStatus = false;
+        return;
     }
+    gtk_image_set_from_file(playerImage,"CoinATURN.png");
+}
+
+
+void set_game_level(int gameLevel){
+    int j;
+    if(gameLevel==0){
+        gtk_widget_set_sensitive(levelButton[1],FALSE);
+        gtk_widget_set_sensitive(levelButton[2],FALSE);
+    }else if(gameLevel==1){
+        gtk_widget_set_sensitive(levelButton[0],FALSE);
+        gtk_widget_set_sensitive(levelButton[2],FALSE);
+    }else if(gameLevel==2){
+        gtk_widget_set_sensitive(levelButton[0],FALSE);
+        gtk_widget_set_sensitive(levelButton[1],FALSE);
+    }
+    for(j=0;j<COLS;j++){
+        gtk_widget_set_sensitive(button[j],TRUE);
+    }
+
 }
 
 void new_window(GtkWidget *win){
@@ -298,9 +320,8 @@ void new_window(GtkWidget *win){
     g_signal_connect (win, "delete_event", GTK_SIGNAL_FUNC (delete_event), NULL);
 }
 
-void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
+void display_setting(GtkWidget *win, int rows, int cols){
     int i,j,t=5;
-	GtkWidget *levelButton[3];
     GtkWidget *playButton[3];
     GtkWidget *quitButton;
     GtkWidget *mainTable;
@@ -314,7 +335,7 @@ void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
     GtkWidget *hbox1,*hbox2,*hbox3;
     GtkWidget *vbox1,*vbox2,*vbox3,*vbox4,*vbox5,*vbox6;
     GdkColor color;
-    GString *str[7];
+    gchar* str = g_malloc(10);
 
     mainTable = gtk_table_new(8,11,TRUE);
     gtk_container_add (GTK_CONTAINER (win), mainTable);
@@ -338,6 +359,45 @@ void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
     gtk_container_set_border_width (GTK_CONTAINER (vbox2), 5);
     gtk_container_add (GTK_CONTAINER (frame2), vbox2);
 
+    //GtkWidget *button;
+    /*GSList *group;
+    GtkWidget * levelButton;
+    levelButton = gtk_radio_button_new_with_label (NULL, "Easy");
+    gtk_container_add (GTK_CONTAINER (vbox2), levelButton);
+    group = gtk_radio_button_group (GTK_RADIO_BUTTON (levelButton));
+    levelButton = gtk_radio_button_new_with_label(gtk_radio_button_group (GTK_RADIO_BUTTON (levelButton)),
+                 "Medium");
+    gtk_container_add (GTK_CONTAINER (vbox2), levelButton);
+    levelButton = gtk_radio_button_new_with_label(gtk_radio_button_group (GTK_RADIO_BUTTON (levelButton)),
+                 "Hard");
+    gtk_container_add (GTK_CONTAINER (vbox2), levelButton); */
+
+    /*
+    levelButton = gtk_radio_button_new_with_label(gtk_radio_button_group (GTK_RADIO_BUTTON (levelButton)),
+                 "Medium");
+    gtk_box_pack_start (GTK_BOX (vbox2), levelButton, TRUE, TRUE, 0);
+
+    levelButton = gtk_radio_button_new_with_label(gtk_radio_button_group (GTK_RADIO_BUTTON (levelButton)),
+                 "Hard");
+    gtk_box_pack_start (GTK_BOX (vbox2), levelButton, TRUE, TRUE, 0);
+    */
+
+    //gtk_signal_connect_object (GTK_RADIO_BUTTON (levelButton), "clicked", G_CALLBACK(set_game_level),NULL);
+
+    /*
+    levelButton[0] = gtk_button_new_with_label("Easy");
+    GdkColor red = {0, 0xffff, 0x0000, 0x0000};
+    gtk_widget_modify_bg(levelButton[0], GTK_STATE_NORMAL, &red);
+    gtk_container_add (GTK_CONTAINER (vbox2), levelButton[0]);
+
+
+    levelButton[1] = gtk_button_new_with_label("Medium");
+    gtk_container_add (GTK_CONTAINER (vbox2), levelButton[1]);
+
+    levelButton[2] = gtk_button_new_with_label("Hard");
+    gtk_container_add (GTK_CONTAINER (vbox2), levelButton[2]); */
+
+
     levelButton[0] = gtk_button_new_with_label("Easy");
     gtk_container_add (GTK_CONTAINER (vbox2), levelButton[0]);
 
@@ -347,11 +407,16 @@ void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
     levelButton[2] = gtk_button_new_with_label("Hard");
     gtk_container_add (GTK_CONTAINER (vbox2), levelButton[2]);
 
+    gtk_signal_connect_object (levelButton[0], "clicked", G_CALLBACK(set_game_level),0);
+    gtk_signal_connect_object (levelButton[1], "clicked", G_CALLBACK(set_game_level),1);
+    gtk_signal_connect_object (levelButton[2], "clicked", G_CALLBACK(set_game_level),2);
+
+
     frame3 = gtk_frame_new ("PLAYER'S TURN");
     gtk_table_attach_defaults (GTK_TABLE(mainTable), frame3, 2, 4, 3, 5);
     vbox3 = gtk_vbox_new (FALSE, 0);
     gtk_container_add (GTK_CONTAINER (frame3), vbox3);
-    playerImage = gtk_image_new_from_file("CoinATURN.png");
+    playerImage = gtk_image_new_from_file("NoWINNER.png");
     gtk_container_add (GTK_CONTAINER (vbox3), playerImage);
 
     frame4 = gtk_frame_new ("WINNER");
@@ -373,26 +438,19 @@ void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
     gtk_container_add (GTK_CONTAINER (vbox5), playButton[1]);
 
     turnLabel = gtk_label_new("Design Copyright 2014 by bizz-enigma.");
-    gtk_table_attach_defaults (GTK_TABLE(mainTable), turnLabel, 0, 11, 7, 8);
-
-
-    str[0] = "slot0.png";
-    str[1] = "slot1.png";
-    str[2] = "slot2.png";
-    str[3] = "slot3.png";
-    str[4] = "slot4.png";
-    str[5] = "slot5.png";
-    str[6] = "slot6.png";
+    gtk_table_attach_defaults (GTK_TABLE(mainTable), turnLabel, 0, 4+cols, 1+rows, 2+rows);
 
     for(j=0;j<cols;j++){
+        g_snprintf(str,10, "slot%d.png",j);
         button[j] = gtk_button_new();
-        image[j] = gtk_image_new_from_file(str[j]);
+        image[j] = gtk_image_new_from_file(str);
         gtk_button_set_image(button[j],image[j]);
         gtk_table_attach_defaults (GTK_TABLE(mainTable), button[j], j+4, j+5, 0, 1);
+        gtk_widget_set_sensitive(button[j],FALSE);
     }
 
     boardTable = gtk_table_new (ROWS,COLS,FALSE);
-    gtk_table_attach_defaults (GTK_TABLE(mainTable), boardTable, 4, 11, 1, 7);
+    gtk_table_attach_defaults (GTK_TABLE(mainTable), boardTable, 4, 4+cols, 1, 1+rows);
 
     for(i=0;i<rows;i++){
         for(j=0;j<cols;j++){
@@ -402,17 +460,20 @@ void display_setting(GtkWidget *win,GtkWidget *button[7], int rows, int cols){
         t-=1;
     }
 
+
+
 }
 
 
 
 int main(int argc, char** argv) {
 	GtkWidget *win = NULL;
-	GtkWidget *button[7];
 	int input,i;
+	int gameLevel=1;
 	boardType * b = create_board(ROWS,COLS);
 
 	srand (time(NULL));
+	playStatus = true;
 
 	g_log_set_handler ("Gtk", G_LOG_LEVEL_WARNING, (GLogFunc) gtk_false, NULL); //delete at the end
 	gtk_init (&argc, &argv);
@@ -420,20 +481,22 @@ int main(int argc, char** argv) {
 
     win = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     new_window(win);
-	display_setting(win,button,ROWS,COLS);
+	display_setting(win,ROWS,COLS);
 
 	inputType data[COLS];
     for(i=0;i<7;i++){
         data[i].bInput = b;
         data[i].slot = i;
+        g_signal_connect (button[i], "clicked", G_CALLBACK (drop_coin), &data[i]);
     }
-	g_signal_connect (button[0], "clicked", G_CALLBACK (drop_coin), &data[0]);
-    g_signal_connect (button[1], "clicked", G_CALLBACK (drop_coin), &data[1]);
-    g_signal_connect (button[2], "clicked", G_CALLBACK (drop_coin), &data[2]);
-    g_signal_connect (button[3], "clicked", G_CALLBACK (drop_coin), &data[3]);
-    g_signal_connect (button[4], "clicked", G_CALLBACK (drop_coin), &data[4]);
-    g_signal_connect (button[5], "clicked", G_CALLBACK (drop_coin), &data[5]);
-    g_signal_connect (button[6], "clicked", G_CALLBACK (drop_coin), &data[6]);
+    /*
+    levelType levelOption[3];
+    for(i=0;i<3;i++){
+      //levelOption[i].button = levelButton[i];
+      levelOption[i].level = i;
+      g_signal_connect(levelButton[i],"clicked", G_CALLBACK (set_game_level),&levelOption[i]);
+      //g_signal_connect(levelButton[i],"clicked", G_CALLBACK (set_game_level),NULL);
+    }*/
 
     gtk_widget_show_all (win);
     gtk_main ();
