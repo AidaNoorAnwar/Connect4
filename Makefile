@@ -6,7 +6,7 @@ CFLAGS= -c -IC:\gtk\include -IC:\gtk\include\gtk-2.0 -IC:\gtk\include\cairo -IC:
 LFLAGS=	-lm -fastsse
 EXE=	main
 
-SRC=	main.c
+SRC=	main.c	game.c
 
 #
 # No need to edit below this line

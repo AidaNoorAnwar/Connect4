@@ -1,360 +1,114 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <limits.h>
+/** This file contain main function and gtk functions only
+ *  GtkWidget are declared global since passing more than 1 GtkWidget does not work
+ */
+
 #include <gtk/gtk.h>
 #include <gdk/gdk.h>
+#include <time.h>
+#include "game.h"
 
-#ifdef _WIN32
-    #include <windows.h>
-#else
-    #include <unitstd.h>
-#endif
-
-#define ROWS 6
-#define COLS 7
-
-static const int playerOne=1;
-static const int playerTwo=-1;
-static const int empty=0;
-typedef struct point pointType;
-typedef struct board boardType;
 typedef struct input inputType;
-typedef struct level levelType;
-typedef struct moves possibleMove;
-typedef enum { newgame, ongoing, complete} bool;
-int gameDifficultyLevel;
-bool gameStatus;
 
-
+/* Declare Global GTKWidget */
 GtkWidget * coin[ROWS][COLS];
 GtkWidget * playerImage;
 GtkWidget * winnerImage;
 GtkWidget * levelButton[3];
 GtkWidget * button[COLS];
+GtkWidget * newGameButton;
+GtkWidget * quitGameButton;
 
-
-struct point{
-    int x, y, state;
-};
-
-void set_point(pointType * grid,int yAxis, int xAxis){
-    grid->y=yAxis;
-    grid->x=xAxis;
-    grid->state=empty;
-}
-
-void delete_Point(pointType * p){
-    free(p);
-}
-
-void set_state(pointType * p, int player){
-    p->state=player;
-}
-
-int get_state(pointType * p){
-    return p->state;
-}
-
-struct board{
-    pointType **grid;
-    int * heights;
-    int * moves;
-    int currentPlayer;
-    int lastMove;
-    int lineSize;
-    pointType *** possibleLines;
-};
-
-pointType *** generate_possible_lines(pointType ** grid, int lineSize){
-	int i,t;
-	int y,x;
-	int count=0;
-	pointType *** lines = (pointType ***)malloc(lineSize*sizeof(pointType **));
-	for(i = 0; i < lineSize; i++){
-		lines[i] = (pointType **)malloc(4 * sizeof(pointType *));
-	}
-
-    /* mapping possible horizontal lines*/
-	for(y=0;y<ROWS;y++){
-		for( x=0;x<COLS-3;x++){
-			for(i=x;i<x+4;i++){
-				lines[count][i-x]=&grid[y][i];
-			}count++;
-		}
-	}
-
-    /* mapping possible vertical lines*/
-	for( x=0;x<COLS;x++){
-		for( y=0;y<ROWS-3;y++){
-			for( i=y;i<y+4;i++){
-				lines[count][i-y]=&grid[i][x];
-			}count++;
-		}
-	}
-
-    /* mapping possible left_top-right_bottom diagonal lines*/
-	for( x=0;x<COLS-3;x++){
-		for( y=0;y<ROWS-3;y++){
-			for( t=x,i=y;t<x+4 && i<y+4;t++,i++){
-				lines[count][i-y]=&grid[i][t];
-			}count++;
-		}
-	}
-
-    /* mapping possible left_bottom-right_top diagonal lines*/
-	for( x=0;x<COLS-3;x++){
-		for( y=ROWS-1;y>2;y--){
-			for( t=x,i=y;t<x+4 && i>-1;t++,i--){
-				lines[count][t-x]=&grid[i][t];
-			}count++;
-		}
-	}
-	return lines;
-}
-
-boardType * create_board(){
-    int i,j;
-	boardType * b = (boardType*)malloc(sizeof(boardType));
-    b->lastMove=-1;
-	b->currentPlayer=playerOne;
-	b->heights = (int *)malloc(COLS*sizeof(int));
-	b->moves = (int *)malloc(COLS*ROWS*sizeof(int));
-	b->grid = (pointType **)malloc(COLS*sizeof(pointType *));
-	for(i = 0; i < COLS; i++){
-		b->grid[i] = (pointType *)malloc(ROWS*sizeof(pointType ));
-		b->heights[i] = 0;
-	}
-
-	for(i = 0; i <ROWS; i++){
-		for(j = 0; j<COLS; j++){
-			set_point(&b->grid[i][j],i,j);
-		}
-	}
-
-	/* lineSize is the number of possible winning lines. */
-	b->lineSize = (ROWS/4+ROWS%4)*(COLS/4+COLS%4)*2+COLS*(ROWS%4+ROWS/4)+ROWS*(COLS%4+COLS/4);
-	b->possibleLines = generate_possible_lines(b->grid,b->lineSize);
-    //g_print("create lineSize %d \n",b->lineSize);
-	return b;
-}
-
-void delete_board(boardType * b){
-	free(b->possibleLines);
-	free(b->grid);
-	free(b);
-}
-
-int valid_move(boardType * b, int input){
-	return b->heights[input]<ROWS;
-}
-
-int valid_moves_left(boardType * b){
-	return b->lastMove<(COLS*ROWS-1);
-}
-
-void make_move(boardType * b, int input){
-	set_state(&b->grid[input][b->heights[input]],b->currentPlayer);
-	b->heights[input]++;
-	b->lastMove;
-	b->moves[b->lastMove]=input;
-	b->currentPlayer=-b->currentPlayer;
-}
-
-void undo_move(boardType * b){
-	set_state(&(b->grid[b->moves[b->lastMove]][b->heights[b->moves[b->lastMove]]-1]),(empty));
-	b->heights[b->moves[b->lastMove]]--;
-	b->lastMove--;
-	b->currentPlayer=-b->currentPlayer;
-}
-
-int winner_is(boardType * b){
-	int i,j;
-	int score;
-	for( i=0;i<b->lineSize;i++){
-        score=0;
-		for(j=0;j<4;j++){
-			score +=b->possibleLines[i][j]->state;
-		}
-		if(score==4){
-			return playerOne;
-		}else if(score==-4){
-			return playerTwo;
-		}
-	}
-	return 0;
-}
-
-char * to_string(boardType * b){
-	char * temp = (char *)malloc(ROWS*(COLS+1)*sizeof(char)+1);
-	char * curr = temp;
-	int y;
-	int x;
-	for( y=ROWS-1;y>-1;y--){
-		for( x=0;x<COLS;x++){
-			if(get_state(&b->grid[x][y])==empty){
-				*curr = '-';
-			}else if(get_state(&b->grid[x][y])==playerOne){
-				*curr = 'O';
-			}else{
-				*curr = 'X';
-			}
-			curr++;
-		}
-		*curr = '\n';
-		curr++;
-	}
-	return temp;
-}
-
-int get_current_player(boardType * b){
-	return b->currentPlayer;
-}
-
-int get_high_difficulty_move(boardType *b){
-    int val =-1;
-
-    return val;
-}
-
-struct moves{
-    int totEmptyCell;
-    int emptyCell;
-    int available;
-};
-int get_medium_difficulty_move(boardType *b){
-    int val=-1;
-    int emptyLoc;
-    int connected;
-    possibleMove possible[COLS];
-
-    for(i=0;i<COLS;i++){
-        if(valid_move(b,i)){
-			possible[i].available = 1;
-		}else{
-			possible[i].available = 0;
-		}
-    }
-
-    for(i=0;i<b->lineSize;i++){
-        emptyLoc=0;
-        connected=0;
-        for(j=0;j<4;j++){
-            if(b->possibleLines[i][j].x!=b->heights[based on col])
-            if(b->possibleLines[i][j].state==empty){
-                emptyLoc=+1;
-            }
-            if(b->possibleLines[i][j].state==playerTwo){
-                connected=+1;
-            }
-        }
-        if(emptyLoc<3 and connected<3){
-
-        }
-    }
-
-
-
-    while(val == -1){
-		int rad = rand() % 7;
-		if(possible[rad] == 1){
-			val = rad;
-		}
-	}
-    return val;
-}
-
-int get_easy_difficulty_move(boardType *b){
-	int val =-1;
-	int possible[7];
-	int i;
-	for( i = 0; i <7; i++)
-	{
-		if(valid_move(b,i)){
-			possible[i] = 1;
-		}else{
-			possible[i] = 0;
-		}
-	}
-
-	while(val == -1){
-		int rad = rand() % 7;
-		if(possible[rad] == 1){
-			val = rad;
-		}
-	}
-	return val;
-}
-
+/* structure input for drop_button parameters*/
 struct input{
     boardType * bInput;
     int slot;
 };
 
+/* Delete main windows when user click Quit Game*/
 gint delete_event( GtkWidget *widget,GdkEvent *event, gpointer user_data ){
     gtk_main_quit();
     return(FALSE);
 }
 
-void wait(int secs) {
-    #ifdef _WIN32
-        Sleep( 500*secs);
-    #else
-        Sleep(secs);
-    #endif //
-}
-
+/* This function is fired when the drop coin button is clicked */
 void drop_coin(GtkWidget *widget,gpointer user_data){
-    int randomMove,winner;
-    GtkWidget *dialog;
+    int randomMove=0;
+    int winner=0;
     inputType *input = (inputType *)user_data;
-    //g_print("lineSize %d, slot %d, \n",input->bInput->lineSize ,input->slot);
     if(gameStatus == complete)return;
-    if(input->bInput->heights[input->slot]==6){
-        return;
+    if(input->bInput->heights[input->slot]==ROWS)return;
+    if(gameStatus == newgame){
+        init_board(input->bInput);
+        gameStatus=ongoing;
     }
     gtk_image_set_from_file(coin[input->bInput->heights[input->slot]][input->slot],"CoinA.png");
     make_move(input->bInput,input->slot);
     winner = winner_is(input->bInput);
     if(winner==1){
-        gtk_image_set_from_file(winnerImage,"CoinAWIN.png");
-        gameStatus = complete;
-        reset_board();
-        return;
+       gtk_image_set_from_file(winnerImage,"CoinAWIN.png");
+       gameStatus = complete;
+       init_board(input->bInput);
+       return;
     }
+
     gtk_image_set_from_file(playerImage,"CoinBTURN.png");
-    //wait(3);
-    randomMove = get_random_player_move(input->bInput);
+
+    if(gameDifficultyLevel== 0){
+        randomMove = get_easy_difficulty_move(input->bInput);
+    }else if(gameDifficultyLevel == 1){
+        randomMove = get_medium_difficulty_move(input->bInput);
+    }else if(gameDifficultyLevel == 2){
+        randomMove = get_high_difficulty_move(input->bInput);
+    }
+    if(input->bInput->heights[randomMove]==ROWS){
+            return;
+    }
     gtk_image_set_from_file(coin[input->bInput->heights[randomMove]][randomMove],"CoinB.png");
     make_move(input->bInput,randomMove);
     winner = winner_is(input->bInput);
     if(winner==-1){
         gtk_image_set_from_file(winnerImage,"CoinBWIN.png");
         gameStatus = complete;
+        init_board(input->bInput);
         return;
     }
     gtk_image_set_from_file(playerImage,"CoinATURN.png");
 }
 
-void set_game(int gameLevel){
-    int j;
+/* This function is fired when any difficulty levels button is clicked
+*   -enable board
+*/
+void set_game(gint temp){
     if(gameStatus == ongoing) return;
     if(gameStatus == complete) return;
     gameStatus = ongoing;
-    reset_board(TRUE);
+    reset_board(FALSE,TRUE);
     gtk_image_set_from_file(playerImage,"CoinATURN.png");
-    gtk_widget_set_sensitive(levelButton[gameLevel],TRUE);
+    gtk_widget_set_sensitive(levelButton[temp],TRUE);
+    gameDifficultyLevel=temp;
 }
 
-void reset_board(gboolean buttonStatus){
+/* This function is fired when newgame button is clicked
+*   -reset interface
+*/
+void reset_game(GtkWidget *widget,gpointer user_data){
+    gameDifficultyLevel=0;
+    gameStatus = newgame;
+    reset_board(TRUE,FALSE);
+}
+
+/*
+*   reset board interface
+*/
+void reset_board(gboolean levelState,gboolean buttonState){
     int i,j;
 
     for(i=0;i<3;i++){
-        gtk_widget_set_sensitive(levelButton[i],FALSE);
+        gtk_widget_set_sensitive(levelButton[i],levelState);
     }
 
     for(j=0;j<COLS;j++){
-        gtk_widget_set_sensitive(button[j],TRUE);
+        gtk_widget_set_sensitive(button[j],buttonState);
     }
 
     for(i=0;i<ROWS;i++){
@@ -362,8 +116,13 @@ void reset_board(gboolean buttonStatus){
             gtk_image_set_from_file(coin[i][j],"CoinC.png");
         }
     }
+    gtk_image_set_from_file(winnerImage,"NoWINNER.png");
+    gtk_image_set_from_file(playerImage,"NoWINNER.png");
 }
 
+/*
+*   setup new window
+*/
 void new_window(GtkWidget *win){
     gtk_container_set_border_width (GTK_CONTAINER (win), 10);
     gtk_window_set_title (GTK_WINDOW (win), "Connect4 Game");
@@ -375,14 +134,14 @@ void new_window(GtkWidget *win){
     g_signal_connect (win, "delete_event", GTK_SIGNAL_FUNC (delete_event), NULL);
 }
 
+/*
+*   setup component in the window
+*/
 void display_setting(GtkWidget *win){
     int i,j,t=5;
     GtkWidget *mainTable;
     GtkWidget *boardTable;
-    GtkWidget *scoreTable;
     GtkWidget *image[COLS];
-    GtkWidget *newGameButton;
-    GtkWidget *quitGameButton;
     GtkWidget *frame1,*frame2,*frame3,*frame4,*frame5;
     GtkWidget *label1,*turnLabel;
     GtkWidget *hbox1,*hbox2,*hbox3;
@@ -400,7 +159,7 @@ void display_setting(GtkWidget *win){
     gtk_container_add (GTK_CONTAINER (frame1), vbox1);
 
     /* Standard message dialog */
-    label1 = gtk_label_new ("To Win:\nCONNECT 4 COINS IN A ROW, COLUMN OR DIAGONAL.\nTo Play:\n1. Select Difficulty Level. Easy is the default.\n2. Click any SLOT BUTTON to drop your coin.\nNew Match: To reset a match or play a new match.\nNew Game: To play new game.\nNote: A match can have many games.\nTo Exit:Click button 'x' at the top right corner.");
+    label1 = gtk_label_new ("To Win:\nCONNECT 4 COINS IN A ROW, COLUMN OR DIAGONAL.\nTo Play:\n1. Select Difficulty Level.\n2. Click any SLOT BUTTON to drop your coin.\nNew Game: To play new game.\nTo Exit:Click button 'x' at the top right corner.");
     gtk_box_pack_start (GTK_BOX (vbox1), label1, FALSE, FALSE, 0);
     gtk_label_set_line_wrap( GTK_LABEL( label1 ), TRUE );
 
@@ -449,7 +208,6 @@ void display_setting(GtkWidget *win){
     gtk_table_attach_defaults (GTK_TABLE(mainTable), turnLabel, 0, 4+COLS, 1+ROWS, 2+ROWS);
 
     for(j=0;j<COLS;j++){
-
         g_snprintf(str,10, "slot%d.png",j);
         button[j] = gtk_button_new();
         image[j] = gtk_image_new_from_file(str);
@@ -475,39 +233,46 @@ void display_setting(GtkWidget *win){
 
 int main(int argc, char** argv) {
 	GtkWidget *win = NULL;
-	int input,i;
-	int gameLevel=1;
+	int i;
 
-	boardType * b = create_board();
-
+	boardType * b = create_board(); //create board
+	init_board(b); //init board
 	srand (time(NULL));
 	gameStatus = newgame;
 
-	g_log_set_handler ("Gtk", G_LOG_LEVEL_WARNING, (GLogFunc) gtk_false, NULL); //delete at the end
+    /* error handler lines commented out for future use and not require for software release*/
+	//g_log_set_handler ("Gtk", G_LOG_LEVEL_WARNING, (GLogFunc) gtk_false, NULL); //delete at the end
 	gtk_init (&argc, &argv);
-	g_log_set_handler ("Gtk", G_LOG_LEVEL_WARNING, g_log_default_handler, NULL); //delete at the end
+	//g_log_set_handler ("Gtk", G_LOG_LEVEL_WARNING, g_log_default_handler, NULL); //delete at the end
 
+    /*initialize new window from gtk library*/
     win = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     new_window(win);
 
+    /* setup window display */
 	display_setting(win);
 
+    /* start parsing data to gtk event */
 	inputType data[COLS];
     for(i=0;i<COLS;i++){
         data[i].bInput = b;
         data[i].slot = i;
-        //g_print("display slot:%d, lineSize:%d\n",data[i].slot,data[i].bInput->lineSize);
-        g_signal_connect (button[i], "clicked", G_CALLBACK (drop_coin), &data[i]);
+        g_signal_connect (button[i], "clicked", G_CALLBACK (drop_coin),&data[i]);
     }
 
     for(i=0;i<3;i++){
         gtk_signal_connect_object (levelButton[i], "clicked", G_CALLBACK(set_game),i);
     }
 
+    gtk_signal_connect_object (newGameButton, "clicked", G_CALLBACK(reset_game),NULL);
+    gtk_signal_connect_object (quitGameButton, "clicked", G_CALLBACK(delete_event),NULL);
+
+    /* end parsing data to gtk event */
 
     gtk_widget_show_all (win);
     gtk_main ();
 
-
+    /* free up allocated memory from the application */
+    delete_board(b);
 	return 0;
 }

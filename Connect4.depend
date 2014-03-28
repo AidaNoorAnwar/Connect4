@@ -2250,13 +2250,31 @@
 1392882230 c:\gtk\include\gtk-2.0\gtk\gtktipsquery.h
 	<gtk/gtk.h>
 
-1394737959 source:f:\study\sem2\sd\connect4\main.c
-	<stdlib.h>
-	<stdio.h>
-	<time.h>
-	<limits.h>
+1396022843 source:f:\study\sem2\sd\connect4\main.c
 	<gtk/gtk.h>
 	<gdk/gdk.h>
-	<windows.h>
-	<unitstd.h>
+	<time.h>
+	"game.h"
+
+1396013999 source:f:\study\sem2\sd\connect4\game.c
+	"game.h"
+
+1396012535 f:\study\sem2\sd\connect4\game.h
+	<stdlib.h>
+	<stdio.h>
+	<limits.h>
+
+1396013999 source:c:\users\bizz_enigma\documents\github\connect4\game.c
+	"game.h"
+
+1396012535 c:\users\bizz_enigma\documents\github\connect4\game.h
+	<stdlib.h>
+	<stdio.h>
+	<limits.h>
+
+1396022975 source:c:\users\bizz_enigma\documents\github\connect4\main.c
+	<gtk/gtk.h>
+	<gdk/gdk.h>
+	<time.h>
+	"game.h"
 
